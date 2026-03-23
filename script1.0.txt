@@ -1,0 +1,194 @@
+-- [[ 适配 Delta 的 Orion UI 库 ]]
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+local Window = OrionLib:MakeWindow({Name = "War Tycoon 终极主宰 - Delta", HidePremium = false, SaveConfig = true, ConfigFolder = "WT_Nightingale"})
+
+-- [[ 全局变量控制 ]]
+local LP = game.Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LP:GetMouse()
+local RS = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+_G.Aimbot = false
+_G.AimRadius = 150
+_G.Whitelist = {}
+_G.NoRecoil = false
+_G.ESP = false
+_G.ESPColor = Color3.fromRGB(255, 0, 0)
+_G.HitboxSize = 2
+_G.ShowHitbox = false
+_G.AutoFarm = false
+_G.FarmFilter = "所有资源"
+_G.AutoCapture = false
+_G.ArmorTier = "轻型护甲"
+_G.FlyEnabled = false
+_G.FlySpeed = 70
+_G.AutoRepair = false
+_G.LowGraphic = false
+
+-- 获取玩家列表
+local function GetPlayerList()
+    local p = {}
+    for _, v in pairs(game.Players:GetPlayers()) do
+        if v ~= LP then table.insert(p, v.Name) end
+    end
+    return p
+end
+
+-- 获取基地位置
+local function GetBase()
+    for _, t in pairs(workspace.Tycoon.Tycoons:GetChildren()) do
+        if t:FindFirstChild("Owner") and t.Owner.Value == LP then return t end
+    end
+    return nil
+end
+
+-- ### 1. 暴力战斗
+local Tab1 = Window:MakeTab({Name = "暴力战斗", Icon = "rbxassetid://4483345998"})
+Tab1:AddToggle({Name = "开启穿墙自瞄", Default = false, Callback = function(v) _G.Aimbot = v end})
+Tab1:AddSlider({Name = "自瞄范围 (FOV)", Min = 50, Max = 800, Default = 150, Callback = function(v) _G.AimRadius = v end})
+Tab1:AddToggle({Name = "全枪械适配 (无后坐/准星)", Default = false, Callback = function(v) _G.NoRecoil = v end})
+Tab1:AddSlider({Name = "碰撞箱大小 (Hitbox)", Min = 2, Max = 20, Default = 2, Callback = function(v) _G.HitboxSize = v end})
+Tab1:AddToggle({Name = "显示红色 Hitbox", Default = false, Callback = function(v) _G.ShowHitbox = v end})
+
+-- ### 2. 视觉显示
+local Tab2 = Window:MakeTab({Name = "视觉透视", Icon = "rbxassetid://4483345998"})
+Tab2:AddToggle({Name = "开启人物透视 (ESP)", Default = false, Callback = function(v) _G.ESP = v end})
+Tab2:AddColorpicker({Name = "透视颜色自定义", Default = Color3.fromRGB(255, 0, 0), Callback = function(v) _G.ESPColor = v end})
+
+-- ### 3. 自动农场与任务
+local Tab3 = Window:MakeTab({Name = "自动农场/任务", Icon = "rbxassetid://4483345998"})
+Tab3:AddDropdown({Name = "农场资源过滤", Default = "所有资源", Options = {"所有资源", "仅限油桶", "仅限资源箱", "仅限资金"}, Callback = function(v) _G.FarmFilter = v end})
+Tab3:AddToggle({Name = "开启自动采集 (传送模式)", Default = false, Callback = function(v) _G.AutoFarm = v end})
+Tab3:AddToggle({Name = "自动传送占领据点", Default = false, Callback = function(v) _G.AutoCapture = v end})
+
+-- ### 4. 移动与载具
+local Tab4 = Window:MakeTab({Name = "移动与载具", Icon = "rbxassetid://4483345998"})
+Tab4:AddToggle({Name = "战术飞行 (可持枪)", Default = false, Callback = function(v) _G.FlyEnabled = v end})
+Tab4:AddSlider({Name = "飞行速度", Min = 16, Max = 200, Default = 70, Callback = function(v) _G.FlySpeed = v end})
+Tab4:AddToggle({Name = "载具自动修复", Default = false, Callback = function(v) _G.AutoRepair = v end})
+
+-- ### 5. 目标管理与补给
+local Tab5 = Window:MakeTab({Name = "目标/补给", Icon = "rbxassetid://4483345998"})
+local PlayerList = Tab5:AddDropdown({Name = "选择目标玩家", Options = GetPlayerList(), Callback = function(v) _G.SelectedPlayer = v end})
+Tab5:AddButton({Name = "刷新名单", Callback = function() PlayerList:Refresh(GetPlayerList(), true) end})
+Tab5:AddButton({Name = "加入/移除自瞄白名单", Callback = function()
+    if table.find(_G.Whitelist, _G.SelectedPlayer) then table.remove(_G.Whitelist, table.find(_G.Whitelist, _G.SelectedPlayer)) else table.insert(_G.Whitelist, _G.SelectedPlayer) end
+end})
+Tab5:AddButton({Name = "传送到该玩家身后", Callback = function()
+    local t = game.Players:FindFirstChild(_G.SelectedPlayer)
+    if t and t.Character then LP.Character.HumanoidRootPart.CFrame = t.Character.HumanoidRootPart.CFrame * CFrame.new(0, 0, 3) end
+end})
+Tab5:AddDropdown({Name = "补给护甲档位", Default = "轻型护甲", Options = {"轻型护甲", "中型护甲", "重型护甲", "特种护甲"}, Callback = function(v) _G.ArmorTier = v end})
+Tab5:AddButton({Name = "一键回基地补给并返回", Callback = function()
+    local t = GetBase(); if not t then return end
+    local old = LP.Character.HumanoidRootPart.CFrame
+    LP.Character.HumanoidRootPart.CFrame = t.Essentials.CFrame
+    task.wait(1); local a = t.Essentials:FindFirstChild(_G.ArmorTier, true)
+    if a then firetouchinterest(LP.Character.HumanoidRootPart, a, 0); firetouchinterest(LP.Character.HumanoidRootPart, a, 1) end
+    task.wait(1); LP.Character.HumanoidRootPart.CFrame = old
+end})
+
+-- ### 6. 系统优化 (缓存清理)
+local Tab6 = Window:MakeTab({Name = "系统优化", Icon = "rbxassetid://4483345998"})
+Tab6:AddButton({
+    Name = "立即清理脚本缓存 (提升FPS)",
+    Callback = function()
+        local count = collectgarbage("count")
+        collectgarbage("collect")
+        OrionLib:MakeNotification({Name = "清理成功", Content = string.format("已释放 %.2f KB 内存", count - collectgarbage("count")), Time = 3})
+    end
+})
+Tab6:AddToggle({
+    Name = "低画质模式 (防闪退)",
+    Default = false,
+    Callback = function(v)
+        _G.LowGraphic = v
+        if _G.LowGraphic then
+            for _, obj in pairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") then obj.Material = Enum.Material.SmoothPlastic end
+            end
+        end
+    end
+})
+
+-- [[ 核心逻辑循环 ]]
+
+-- 1. 自瞄与视觉处理
+RS.RenderStepped:Connect(function()
+    if _G.Aimbot then
+        local target = nil; local dist = _G.AimRadius
+        for _, v in pairs(game.Players:GetPlayers()) do
+            if v ~= LP and v.Team ~= LP.Team and v.Character and v.Character:FindFirstChild("Head") and not table.find(_G.Whitelist, v.Name) then
+                local pos, onS = Camera:WorldToViewportPoint(v.Character.Head.Position)
+                if onS then
+                    local m = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(pos.X, pos.Y)).Magnitude
+                    if m < dist then target = v.Character.Head; dist = m end
+                end
+            end
+        end
+        if target then Camera.CFrame = CFrame.new(Camera.CFrame.Position, target.Position) end
+    end
+    
+    for _, p in pairs(game.Players:GetPlayers()) do
+        if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local hrp = p.Character.HumanoidRootPart
+            hrp.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+            hrp.Transparency = _G.ShowHitbox and 0.7 or 1
+            hrp.Color = _G.ESPColor
+            if _G.ESP then
+                local hl = p.Character:FindFirstChild("Highlight") or Instance.new("Highlight", p.Character)
+                hl.FillColor = _G.ESPColor; hl.Enabled = true
+            elseif p.Character:FindFirstChild("Highlight") then p.Character.Highlight.Enabled = false end
+        end
+    end
+end)
+
+-- 2. 枪械与飞行逻辑
+task.spawn(function()
+    local bv, bg
+    while true do
+        if _G.NoRecoil then
+            for _, t in pairs(LP.Backpack:GetChildren()) do
+                if t:IsA("Tool") and t:FindFirstChild("Settings") then
+                    local s = require(t.Settings); s.Recoil = 0; s.Spread = 0
+                end
+            end
+        end
+        if _G.FlyEnabled then
+            if not bv then
+                bv = Instance.new("BodyVelocity", LP.Character.HumanoidRootPart)
+                bv.MaxForce = Vector3.new(1e6, 1e6, 1e6)
+                bg = Instance.new("BodyGyro", LP.Character.HumanoidRootPart)
+                bg.MaxTorque = Vector3.new(1e6, 1e6, 1e6)
+            end
+            local dir = Vector3.new(0, 0.1, 0)
+            if UIS:IsKeyDown(Enum.KeyCode.W) then dir = Camera.CFrame.LookVector end
+            bv.Velocity = dir * _G.FlySpeed; bg.CFrame = Camera.CFrame
+        elseif bv then
+            bv:Destroy(); bg:Destroy(); bv = nil
+        end
+        task.wait()
+    end
+end)
+
+-- 3. 自动采集与占点
+task.spawn(function()
+    while task.wait(3) do
+        if _G.AutoFarm then
+            for _, i in pairs(workspace:GetDescendants()) do
+                if (_G.FarmFilter == "所有资源" and (i.Name == "OilDrum" or i.Name == "SupplyCrate")) then
+                    LP.Character.HumanoidRootPart.CFrame = i.CFrame; task.wait(0.5)
+                    firetouchinterest(LP.Character.HumanoidRootPart, i, 0); task.wait(0.5); break
+                end
+            end
+        end
+        if _G.AutoCapture then
+            for _, cp in pairs(workspace:GetDescendants()) do
+                if cp.Name == "CapturePoint" then LP.Character.HumanoidRootPart.CFrame = cp.CFrame; task.wait(8); break end
+            end
+        end
+    end
+end)
+
+OrionLib:Init()
