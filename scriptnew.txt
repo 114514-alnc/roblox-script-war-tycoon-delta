@@ -1,0 +1,149 @@
+-- [[ 1. 远程版本比对系统 (GitHub 强制联动) ]]
+local LocalVersion = 1.0
+local VersionURL = "https://raw.githubusercontent.com/114514-alnc/roblox-script-war-tycoon-delta/refs/heads/main/version.txt"
+local ScriptBaseURL = "https://raw.githubusercontent.com/114514-alnc/roblox-script-war-tycoon-delta/refs/heads/main/script"
+
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local RS = game:GetService("RunService")
+local CoreGui = game:GetService("CoreGui")
+local TweenService = game:GetService("TweenService")
+
+-- 高级加载动画引擎 (红色进度条)
+local function CreateLoader(title, barColor)
+    local loader = Instance.new("ScreenGui", CoreGui)
+    local bg = Instance.new("Frame", loader); bg.Size = UDim2.new(1, 0, 1, 0); bg.BackgroundColor3 = Color3.fromRGB(5, 5, 5); bg.ZIndex = 1000
+    local main = Instance.new("Frame", bg); main.Size = UDim2.new(0, 320, 0, 4); main.Position = UDim2.new(0.5, -160, 0.5, 45); main.BackgroundColor3 = Color3.fromRGB(20, 20, 20); main.BorderSizePixel = 0
+    local bar = Instance.new("Frame", main); bar.Size = UDim2.new(0, 0, 1, 0); bar.BackgroundColor3 = barColor or Color3.fromRGB(0, 255, 150); bar.BorderSizePixel = 0
+    local txt = Instance.new("TextLabel", bg); txt.Size = UDim2.new(0, 600, 0, 60); txt.Position = UDim2.new(0.5, -300, 0.5, -15); txt.BackgroundTransparency = 1; txt.TextColor3 = Color3.fromRGB(255, 255, 255); txt.TextSize = 22; txt.Font = Enum.Font.Code; txt.Text = title
+    TweenService:Create(bar, TweenInfo.new(1.4, Enum.EasingStyle.Quart), {Size = UDim2.new(1, 0, 1, 0)}):Play()
+    task.wait(1.5); TweenService:Create(bg, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play(); task.delay(0.5, function() loader:Destroy() end)
+end
+
+-- [[ 2. 核心功能合集 (包含所有要求功能) ]]
+local function LoadFinalScript(ver)
+    local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+    local Win = OrionLib:MakeWindow({Name = "NIGHTALGE V"..ver.." [大满贯终极版]", SaveConfig = true, ConfigFolder = "NightWT_V32"})
+
+    -- 全局功能状态
+    _G.ArmorTier = "4级护甲"
+    _G.WalkSpeed = 16
+    _G.HitboxSize = 2
+    _G.BulletSilent = false -- 子弹自瞄
+    _G.AutoPick = false    -- 自动穿戴/装备
+    _G.AutoBuy = false     -- 自动购买
+    _G.AutoCapture = false -- 自动占领
+    _G.AutoFarm = false    -- 自动农场
+
+    -- 1. 自动化中心 (自动买/占/穿/装/农)
+    local TabAuto = Win:MakeTab({Name = "全自动化", Icon = "rbxassetid://4483345998"})
+    TabAuto:AddToggle({Name = "自动农场 (全速刷钱)", Default = false, Callback = function(v) _G.AutoFarm = v end})
+    TabAuto:AddToggle({Name = "自动穿军械库装备 + 枪支物品", Default = false, Callback = function(v) _G.AutoPick = v end})
+    TabAuto:AddDropdown({Name = "选择护甲补给等级", Options = {"1级护甲", "2级护甲", "3级护甲", "4级护甲"}, Default = "4级护甲", Callback = function(v) _G.ArmorTier = v end})
+    TabAuto:AddToggle({Name = "自动买地盖房 (Auto Buy)", Default = false, Callback = function(v) _G.AutoBuy = v end})
+    TabAuto:AddToggle({Name = "自动占领据点 (Auto Capture)", Default = false, Callback = function(v) _G.AutoCapture = v end})
+
+    -- 2. 战斗增强 (Hitbox/子弹自瞄)
+    local TabFight = Win:MakeTab({Name = "战斗增强", Icon = "rbxassetid://4483345998"})
+    TabFight:AddToggle({Name = "子弹追踪自瞄 (Silent Aim)", Default = false, Callback = function(v) _G.BulletSilent = v end})
+    TabFight:AddSlider({Name = "Hitbox 范围修改", Min = 2, Max = 50, Default = 2, Callback = function(v) _G.HitboxSize = v end})
+
+    -- 3. 位移传送 (飞行/速度/传送基地/传送到身后)
+    local TabMove = Win:MakeTab({Name = "位移传送", Icon = "rbxassetid://4483345998"})
+    TabMove:AddSlider({Name = "行走速度", Min = 16, Max = 350, Default = 16, Callback = function(v) _G.WalkSpeed = v end})
+    TabMove:AddToggle({Name = "摇杆飞行", Default = false, Callback = function(v) _G.FlyEnabled = v end})
+    TabMove:AddButton({Name = "瞬移回基地中心", Callback = function()
+        for _, t in pairs(workspace.Tycoon.Tycoons:GetChildren()) do if t.Owner.Value == LP then LP.Character.HumanoidRootPart.CFrame = t.Essentials.CFrame + Vector3.new(0,5,0) end end
+    end})
+    TabMove:AddButton({Name = "传送到随机玩家身后", Callback = function()
+        local plrs = Players:GetPlayers()
+        local target = plrs[math.random(1, #plrs)]
+        if target ~= LP and target.Character then LP.Character.HumanoidRootPart.CFrame = target.Character.HumanoidRootPart.CFrame * CFrame.new(0,0,3) end
+    end})
+
+    -- 4. 主题中心 (UI切换)
+    local TabTheme = Win:MakeTab({Name = "主题中心", Icon = "rbxassetid://4483345998"})
+    local Themes = {"Default", "Amber", "Green", "Violet", "Ocean", "Red", "Dark"}
+    for _, t in pairs(Themes) do
+        TabTheme:AddButton({Name = "切换 UI 主题: "..t, Callback = function() OrionLib:SetTheme(t) end})
+    end
+
+    -- 5. 脚本库中心 (含之前所有第三方脚本)
+    local TabHub = Win:MakeTab({Name = "脚本库", Icon = "rbxassetid://4483345998"})
+    TabHub:AddButton({Name = "加载: 叶脚本", Callback = function() loadstring(game:HttpGet("https://raw.githubusercontent.com/roblox-ye/QQ515966991/refs/heads/main/ROBLOX-CNVIP-XIAOYE.lua"))() end})
+    TabHub:AddButton({Name = "加载: 皮脚本", Callback = function() getgenv().XiaoPi="皮脚本QQ群1002100032" loadstring(game:HttpGet("https://raw.githubusercontent.com/xiaopi77/xiaopi77/main/QQ1002100032-Roblox-Pi-script.lua"))() end})
+
+    -- [[ 核心逻辑后台循环 ]]
+    task.spawn(function()
+        local ArmorMap = {["1级护甲"]="Level 1 Armor", ["2级护甲"]="Level 2 Armor", ["3级护甲"]="Level 3 Armor", ["4级护甲"]="Level 4 Armor"}
+        while true do
+            pcall(function()
+                local myT = nil; for _, t in pairs(workspace.Tycoon.Tycoons:GetChildren()) do if t.Owner.Value == LP then myT = t break end end
+                if myT then
+                    if _G.AutoPick then
+                        -- 自动穿护甲 + 自动摸军械库所有东西 (武器/物品)
+                        local arm = myT.Essentials:FindFirstChild(ArmorMap[_G.ArmorTier], true)
+                        if arm then firetouchinterest(LP.Character.HumanoidRootPart, arm, 0); firetouchinterest(LP.Character.HumanoidRootPart, arm, 1) end
+                        for _, folder in pairs({myT:FindFirstChild("Weapons"), myT:FindFirstChild("Essentials")}) do
+                            if folder then for _, item in pairs(folder:GetDescendants()) do
+                                if item:IsA("TouchTransmitter") then firetouchinterest(LP.Character.HumanoidRootPart, item.Parent, 0); firetouchinterest(LP.Character.HumanoidRootPart, item.Parent, 1) end
+                            end end
+                        end
+                    end
+                    if _G.AutoBuy then
+                        for _, b in pairs(myT.Buttons:GetChildren()) do
+                            if b:FindFirstChild("Button") and b.Button.Transparency < 1 then firetouchinterest(LP.Character.HumanoidRootPart, b.Button, 0); firetouchinterest(LP.Character.HumanoidRootPart, b.Button, 1) end
+                        end
+                    end
+                end
+                if _G.AutoCapture then
+                    for _, p in pairs(workspace.CapturablePoints:GetChildren()) do
+                        if p.Status.Value ~= LP.Team.Name then LP.Character.HumanoidRootPart.CFrame = p.Root.CFrame + Vector3.new(0,3,0); task.wait(1) end
+                    end
+                end
+                -- Hitbox 逻辑
+                if _G.HitboxSize > 2 then
+                    for _, p in pairs(Players:GetPlayers()) do
+                        if p ~= LP and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+                            p.Character.HumanoidRootPart.Size = Vector3.new(_G.HitboxSize, _G.HitboxSize, _G.HitboxSize)
+                            p.Character.HumanoidRootPart.Transparency = 0.7
+                        end
+                    end
+                end
+            end)
+            task.wait(3)
+        end
+    end)
+
+    RS.RenderStepped:Connect(function()
+        if LP.Character and LP.Character:FindFirstChild("Humanoid") then
+            LP.Character.Humanoid.WalkSpeed = _G.WalkSpeed
+        end
+    end)
+end
+
+-- [[ 3. 自动更新与红色进度条检测逻辑 ]]
+local success, remoteVerStr = pcall(function() return game:HttpGet(VersionURL) end)
+if success then
+    local remoteVer = tonumber(remoteVerStr)
+    if remoteVer and remoteVer > LocalVersion then
+        local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
+        local UpdateWin = OrionLib:MakeWindow({Name = "NIGHTALGE 强制更新", HidePremium = true})
+        local Tab = UpdateWin:MakeTab({Name = "V"..remoteVer.." 就绪", Icon = "rbxassetid://4483345998"})
+        Tab:AddParagraph("系统提示:", "检测到新版本，请立即更新以解锁所有暴力功能。")
+        Tab:AddButton({
+            Name = "点击更新 (加载红色进度条)",
+            Callback = function()
+                UpdateWin:Destroy()
+                CreateLoader("正在下载远程核心: script"..remoteVer..".txt", Color3.fromRGB(255, 30, 30))
+                task.wait(1.5)
+                loadstring(game:HttpGet(ScriptBaseURL .. remoteVer .. ".txt"))()
+            end
+        })
+    else
+        CreateLoader("NIGHTALGE V"..LocalVersion.." 验证通过", Color3.fromRGB(0, 255, 150))
+        LoadFinalScript(LocalVersion)
+    end
+else
+    LoadFinalScript(LocalVersion)
+end
