@@ -24,6 +24,7 @@ end
 local function LoadFinalScript(ver)
     local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
     local Win = OrionLib:MakeWindow({Name = "NIGHTALGE V"..ver.." [大满贯终极版]", SaveConfig = true, ConfigFolder = "NightWT_V32"})
+    OrionLib:Init()
 
     -- 全局功能状态
     _G.ArmorTier = "4级护甲"
